@@ -1,4 +1,5 @@
 ace this <3
+dependencies: lxml beautifulsoup for parsing
 
 ABOUT
 -------------------------
