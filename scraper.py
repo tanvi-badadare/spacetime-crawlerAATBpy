@@ -1,5 +1,5 @@
 import re
-from urllib.parse import urlparse, urljoin
+from urllib.parse import urlparse, urljoin, urldefrag
 from bs4 import BeautifulSoup
 
 def scraper(url, resp):
@@ -14,16 +14,16 @@ def extract_next_links(url, resp):
 
     if resp.status != 200 or resp.raw_response is None or resp.raw_response.content is None:
         if 600 <= resp.status <= 606:
-            error_reason = resp.error 
-        elif 400 <= resp.status <= 599 and resp.raw_response is not None:
-            try:
-                error_reason = resp.raw_response.content.decode('utf-8', errors='ignore')
-            except Exception:
-                error_reason = "Unable to decode content"
+            error_reason = resp.error if resp.error else f"Cache error ({resp.status})"
+        elif 400 <= resp.status <= 599:
+            if resp.raw_response and hasattr(resp.raw_response, "reason_phrase"):
+                error_reason = f"HTTP {resp.status} {resp.raw_response.reason_phrase}"
+            else:
+                error_reason = f"HTTP {resp.status}"
         else:
-            error_reason = "Unknown error"
+            error_reason = "No response" if resp.raw_response is None else "Unknown error"
 
-        print(f"Error fetching url: {error_reason}")
+        print(f"Error fetching url: {url}, status: {resp.status}, reason: {error_reason}")
         return links
     
     try:
@@ -54,9 +54,14 @@ def is_valid(url):
     # There are already some conditions that return False.
     try:
         parsed = urlparse(url)
+
+        path = (parsed.path or "").lower()
+        query = (parsed.query or "").lower()
+
+
         if parsed.scheme not in set(["http", "https"]):
             return False
-        return not re.match(
+        condition = not re.match(
             r".*\.(css|js|bmp|gif|jpe?g|ico"
             + r"|png|tiff?|mid|mp2|mp3|mp4"
             + r"|wav|avi|mov|mpeg|ram|m4v|mkv|ogg|ogv|pdf"
@@ -64,7 +69,9 @@ def is_valid(url):
             + r"|data|dat|exe|bz2|tar|msi|bin|7z|psd|dmg|iso"
             + r"|epub|dll|cnf|tgz|sha1"
             + r"|thmx|mso|arff|rtf|jar|csv"
-            + r"|rm|smil|wmv|swf|wma|zip|rar|gz)$", parsed.path.lower())
+            + r"|rm|smil|wmv|swf|wma|zip|rar|gz)$", path)
+        if condition is False:
+            return False
         
         allowed = (
             "ics.uci.edu",
@@ -94,11 +101,11 @@ def is_valid(url):
             return False
         segments = [s for s in path.split("/") if s]
         if len(segments) >= 2:
-        counts = {}
-        for seg in segments:
-            counts[seg] = counts.get(seg, 0) + 1
-        if max(counts.values()) > 2:
-            return False
+            counts = {}
+            for seg in segments:
+                counts[seg] = counts.get(seg, 0) + 1
+            if max(counts.values()) > 2:
+                return False
 
         return True
 
