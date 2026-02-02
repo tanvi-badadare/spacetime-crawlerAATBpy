@@ -13,6 +13,7 @@ def extract_next_links(url, resp):
     links = []
 
     if resp.status != 200 or resp.raw_response is None or resp.raw_response.content is None:
+        '''
         if 600 <= resp.status <= 606:
             error_reason = resp.error 
         elif 400 <= resp.status <= 599 and resp.raw_response is not None:
@@ -22,9 +23,8 @@ def extract_next_links(url, resp):
                 error_reason = "Unable to decode content"
         else:
             error_reason = "Unknown error"
-
-        print(f"Error fetching url: {error_reason}")
-        return links
+        '''
+        return []
     
     try:
         soup = BeautifulSoup(resp.raw_response.content, "html.parser")
@@ -35,8 +35,8 @@ def extract_next_links(url, resp):
             full_url = urljoin(url, href)
             clean_url, _ = urldefrag(full_url)
             links.append(clean_url)
-    except Exception as e:
-        print(f"Error parsing {url}: {e}")
+    except Exception:
+        return []
     
     return links
     
@@ -53,33 +53,62 @@ def is_valid(url):
     # If you decide to crawl it, return True; otherwise return False.
     # There are already some conditions that return False.
     try:
+        url = url.rstrip("/")
         parsed = urlparse(url)
-        if parsed.scheme not in set(["http", "https"]):
+
+        # Scheme check
+        if parsed.scheme not in {"http", "https"}:
             return False
-        
-        allowed_to_crawl = (
+
+        # Domain restriction
+        allowed_domains = (
             "ics.uci.edu",
             "cs.uci.edu",
             "informatics.uci.edu",
             "stat.uci.edu",
         )
 
-        if not parsed.netloc.endswith(allowed_to_crawl):
+        netloc = parsed.netloc.lower().split(":")[0]
+        if not any(netloc == domain or netloc.endswith("." + domain) for domain in allowed_domains):
+            return False
+
+        # Max URL length (crawler trap defense)
+        if len(url) > 500:
             return False
         
+        path = parsed.path.lower()
+        query = parsed.query.lower()
+
+        # File extension filtering
         if re.match(
             r".*\.(css|js|bmp|gif|jpe?g|ico"
-            + r"|png|tiff?|mid|mp2|mp3|mp4"
-            + r"|wav|avi|mov|mpeg|ram|m4v|mkv|ogg|ogv|pdf"
-            + r"|ps|eps|tex|ppt|pptx|doc|docx|xls|xlsx|names"
-            + r"|data|dat|exe|bz2|tar|msi|bin|7z|psd|dmg|iso"
-            + r"|epub|dll|cnf|tgz|sha1"
-            + r"|thmx|mso|arff|rtf|jar|csv"
-            + r"|rm|smil|wmv|swf|wma|zip|rar|gz)$", parsed.path.lower()):
+            r"|png|tiff?|mid|mp2|mp3|mp4"
+            r"|wav|avi|mov|mpeg|ram|m4v|mkv|ogg|ogv|pdf"
+            r"|ps|eps|tex|ppt|pptx|doc|docx|xls|xlsx|names"
+            r"|data|dat|exe|bz2|tar|msi|bin|7z|psd|dmg|iso"
+            r"|epub|dll|cnf|tgz|sha1"
+            r"|thmx|mso|arff|rtf|jar|csv"
+            r"|rm|smil|wmv|swf|wma|zip|rar|gz)$",
+            parsed.path.lower()
+        ):
             return False
         
+        if re.search(r"/\d{4}/\d{1,2}(/\d{1,2})?/?$", path):
+            return False
+        if re.search(r"/(calendar|events?)/", path):
+            return False
+        
+        if re.search(r"(year|month|week|day|page|sort|filter)=\d+", query):
+            return False
+        
+        segments = [s for s in path.split("/") if len(s) > 2]
+        counts = {}
+        for s in segments:
+            counts[s] = counts.get(s, 0) + 1
+        if counts and max(counts.values()) > 2:
+            return False
+
         return True
 
-    except TypeError:
-        print ("TypeError for ", parsed)
-        raise
+    except Exception:
+        return False
