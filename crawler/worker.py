@@ -5,6 +5,7 @@ from utils.download import download
 from utils import get_logger
 import scraper
 import time
+# from Aarabhi-edits
 import analytics
 
 class Worker(Thread):
@@ -25,6 +26,7 @@ class Worker(Thread):
                 break
             resp = download(tbd_url, self.config, self.logger)
             
+            # from Aarabhi-edits
             if resp.status == 200 and resp.raw_response and resp.raw_response.content:
                 try:
                     analytics.process_page(tbd_url, resp.raw_response.content)

@@ -13,6 +13,7 @@ if ENABLE_STATS:
     all_words = Counter()
     subdomains = {}
 
+# from aarushi_edits1
 STOPWORDS = set([
     "a","about","above","after","again","against","all","am","an","and",
     "any","are","as","at","be","because","been","before","being","below",
@@ -29,6 +30,7 @@ STOPWORDS = set([
 ])
 
 
+# from aarushi_edits1
 def tokenize_text(text):
     """
     Tokenize text into words, filtering for ASCII alphabetic characters only.
@@ -46,6 +48,7 @@ def tokenize_text(text):
         yield token
 
 
+# from Aarabhi-edits
 def normalize_url(url):
     """
     Normalize URL by removing query parameters, fragments, and trailing slashes.
@@ -68,7 +71,7 @@ def scraper(url, resp):
             link, _ = urldefrag(link)
             filtered_links.append(link)
             
-            # Optional statistics tracking
+            # from aarushi_edits1 - Optional statistics tracking
             if ENABLE_STATS:
                 unique_urls.add(link)
                 netloc = urlparse(link).netloc.lower()
@@ -86,6 +89,7 @@ def extract_next_links(url, resp):
     links = []
 
     if resp.status != 200 or resp.raw_response is None or resp.raw_response.content is None:
+        # from Tanvi_edits
         if 600 <= resp.status <= 606:
             error_reason = resp.error if resp.error else f"Cache error ({resp.status})"
         elif 400 <= resp.status <= 599:
@@ -102,11 +106,11 @@ def extract_next_links(url, resp):
     try:
         soup = BeautifulSoup(resp.raw_response.content, "html.parser")
         
-        # Remove script, style, and noscript tags to avoid extracting links from them
+        # from aarushi_edits1 - Remove script, style, and noscript tags to avoid extracting links from them
         for tag in soup(["script", "style", "noscript"]):
             tag.extract()
         
-        # Optional: Extract and tokenize text for statistics
+        # from aarushi_edits1 - Optional: Extract and tokenize text for statistics
         if ENABLE_STATS:
             text = soup.get_text(separator=" ")
             words = [w for w in tokenize_text(text) if w not in STOPWORDS]
@@ -115,13 +119,14 @@ def extract_next_links(url, resp):
         
         for tag in soup.find_all("a", href=True):
             href = tag["href"].strip()
+            # from Aarabhi-edits - Filter javascript and mailto links
             if not href or href.startswith("#") or href.startswith("javascript:") or href.startswith("mailto:"):
                 continue
             
-            # CRITICAL FIX: Use resp.url instead of url to handle redirects correctly
+            # from Aarabhi-edits - CRITICAL FIX: Use resp.url instead of url to handle redirects correctly
             absolute_url = urljoin(resp.url, href)
             clean_url, _ = urldefrag(absolute_url)
-            # Normalize URL to avoid duplicates with different query params
+            # from Aarabhi-edits - Normalize URL to avoid duplicates with different query params
             clean_url = normalize_url(clean_url)
             
             links.append(clean_url)
@@ -145,7 +150,7 @@ def is_valid(url):
     Combines the best validation rules from all team members' implementations.
     """
     try:
-        # Normalize URL by removing trailing slash
+        # from aarushi_edits - Normalize URL by removing trailing slash
         url = url.rstrip("/")
         parsed = urlparse(url)
 
@@ -165,14 +170,14 @@ def is_valid(url):
             "stat.uci.edu",
         )
 
-        # Handle port numbers in netloc
+        # from aarushi_edits - Handle port numbers in netloc
         netloc_without_port = netloc.split(":")[0]
         if not netloc_without_port:
             return False
         if not any(netloc_without_port == domain or netloc_without_port.endswith("." + domain) for domain in allowed_domains):
             return False
 
-        # Max URL length (crawler trap defense)
+        # from Tanvi_edits - Max URL length (crawler trap defense)
         max_len = 500
         if len(url) > max_len:
             return False
@@ -191,25 +196,25 @@ def is_valid(url):
         ):
             return False
         
-        # Date pattern filtering (avoid calendar/date URLs)
+        # from Tanvi_edits - Date pattern filtering (avoid calendar/date URLs)
         if re.search(r"/\d{4}/\d{1,2}(/\d{1,2})?/?$", path):
             return False
         
-        # Calendar and events filtering
+        # from Tanvi_edits and aarushi_edits - Calendar and events filtering
         if re.search(r"/(calendar|events?)/", path):
             return False
         if re.search(r"/(events?|calendar)/\d", path):
             return False
         
-        # Query parameter filtering (avoid date-based queries and pagination)
+        # from Tanvi_edits and aarushi_edits - Query parameter filtering (avoid date-based queries and pagination)
         if re.search(r"(year|month|week|day|page|sort|filter)=\d+", query):
             return False
         
-        # Machine learning databases filtering
+        # from Tanvi_edits - Machine learning databases filtering
         if "machine-learning-databases" in path or "/ml/databases/" in path:
             return False
         
-        # Additional filters from aarushi_edits1
+        # from aarushi_edits1 - Additional filters
         if "ical" in query or "ical" in path:
             return False
         if "intranet.ics.uci.edu" in netloc:
@@ -221,7 +226,7 @@ def is_valid(url):
         if query.count("&") >= 3:
             return False
         
-        # Segment repetition detection (crawler trap defense)
+        # from aarushi_edits - Segment repetition detection (crawler trap defense) - improved to only count segments > 2 chars
         segments = [s for s in path.split("/") if s and len(s) > 2]
         if len(segments) >= 2:
             counts = {}
