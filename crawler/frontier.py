@@ -27,12 +27,14 @@ class Frontier(object):
         self.save = shelve.open(self.config.save_file)
         if restart:
             for url in self.config.seed_urls:
+                url = url.strip()
                 self.add_url(url)
         else:
             # Set the frontier state with contents of save file.
             self._parse_save_file()
             if not self.save:
                 for url in self.config.seed_urls:
+                    url = url.strip()
                     self.add_url(url)
 
     def _parse_save_file(self):
@@ -57,6 +59,7 @@ class Frontier(object):
         url = normalize(url)
         urlhash = get_urlhash(url)
         if urlhash not in self.save:
+            self.logger.info(f"Adding URL to Frontier: {url}")
             self.save[urlhash] = (url, False)
             self.save.sync()
             self.to_be_downloaded.append(url)
