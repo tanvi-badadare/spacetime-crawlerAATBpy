@@ -13,21 +13,26 @@ if ENABLE_STATS:
     all_words = Counter()
     subdomains = {}
 
-# from aarushi_edits1
-STOPWORDS = set([
-    "a","about","above","after","again","against","all","am","an","and",
-    "any","are","as","at","be","because","been","before","being","below",
-    "between","both","but","by","could","did","do","does","doing","down",
-    "during","each","few","for","from","further","had","has","have","having",
-    "he","her","here","hers","herself","him","himself","his","how","i","if",
-    "in","into","is","it","its","itself","let's","me","more","most","my","myself",
-    "nor","of","on","once","only","or","other","ought","our","ours","ourselves",
-    "out","over","own","same","she","should","so","some","such","than","that",
-    "the","their","theirs","them","themselves","then","there","these","they",
-    "this","those","through","to","too","under","until","up","very","was","we",
-    "were","what","when","where","which","while","who","whom","why","with",
-    "would","you","your","yours","yourself","yourselves"
-])
+# Use comprehensive stop words from analytics module (from Aarabhi-edits)
+# Removed duplicate STOPWORDS from aarushi_edits1 - using STOP_WORDS from analytics.py instead
+try:
+    from analytics import STOP_WORDS as STOPWORDS
+except ImportError:
+    # Fallback if analytics not available (shouldn't happen but for safety)
+    STOPWORDS = set([
+        "a","about","above","after","again","against","all","am","an","and",
+        "any","are","as","at","be","because","been","before","being","below",
+        "between","both","but","by","could","did","do","does","doing","down",
+        "during","each","few","for","from","further","had","has","have","having",
+        "he","her","here","hers","herself","him","himself","his","how","i","if",
+        "in","into","is","it","its","itself","let's","me","more","most","my","myself",
+        "nor","of","on","once","only","or","other","ought","our","ours","ourselves",
+        "out","over","own","same","she","should","so","some","such","than","that",
+        "the","their","theirs","them","themselves","then","there","these","they",
+        "this","those","through","to","too","under","until","up","very","was","we",
+        "were","what","when","where","which","while","who","whom","why","with",
+        "would","you","your","yours","yourself","yourselves"
+    ])
 
 
 # from aarushi_edits1
