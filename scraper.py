@@ -1,10 +1,65 @@
 import re
 from urllib.parse import urlparse, urljoin, urldefrag
 from bs4 import BeautifulSoup
+from collections import Counter
+
+
+unique_urls = set()
+word_counts = {}
+all_words = Counter()
+subdomains = {}
+
+STOPWORDS = set([
+    "a","about","above","after","again","against","all","am","an","and",
+    "any","are","as","at","be","because","been","before","being","below",
+    "between","both","but","by","could","did","do","does","doing","down",
+    "during","each","few","for","from","further","had","has","have","having",
+    "he","her","here","hers","herself","him","himself","his","how","i","if",
+    "in","into","is","it","its","itself","let's","me","more","most","my","myself",
+    "nor","of","on","once","only","or","other","ought","our","ours","ourselves",
+    "out","over","own","same","she","should","so","some","such","than","that",
+    "the","their","theirs","them","themselves","then","there","these","they",
+    "this","those","through","to","too","under","until","up","very","was","we",
+    "were","what","when","where","which","while","who","whom","why","with",
+    "would","you","your","yours","yourself","yourselves"
+])
+
+
+def tokenize_text(text):
+    token = ''
+    for char in text:
+        if char.isascii() and char.isalpha():
+            token += char.lower()
+        else:
+            if token:
+                yield token
+                token = ''
+    if token:
+        yield token
+
 
 def scraper(url, resp):
     links = extract_next_links(url, resp)
-    return [link for link in links if is_valid(link)]
+    filtered_links = []
+
+    for link in links:
+        if is_valid(link):
+            link, _ = urldefrag(link)
+            filtered_links.append(link)
+            unique_urls.add(link)
+
+            netloc = urlparse(link).netloc.lower()
+            if netloc.endswith(".ics.uci.edu"):
+                if netloc not in subdomains:
+                    subdomains[netloc] = set()
+                subdomains[netloc].add(link)
+
+            if netloc not in subdomains:
+                subdomains[netloc] = set()
+            subdomains[netloc].add(link)
+            
+    return filtered_links
+
 
 def extract_next_links(url, resp):
     # Implementation required.
@@ -28,6 +83,16 @@ def extract_next_links(url, resp):
     
     try:
         soup = BeautifulSoup(resp.raw_response.content, "html.parser")
+
+        for tag in soup(["script", "style", "noscript"]):
+            tag.extract()
+
+        text = soup.get_text(separator=" ")
+        words = [w for w in tokenize_text(text) if w not in STOPWORDS]
+
+        word_counts[url] = len(words)
+        all_words.update(words)
+
         for tag in soup.find_all("a", href=True):
             href = tag["href"].strip()
             if not href or href.startswith("#"):
@@ -35,6 +100,7 @@ def extract_next_links(url, resp):
             full_url = urljoin(url, href)
             clean_url, _ = urldefrag(full_url)
             links.append(clean_url)
+
     except Exception as e:
         print(f"Error parsing {url}: {e}")
     
@@ -49,19 +115,20 @@ def extract_next_links(url, resp):
     # what they had: return list()
 
 def is_valid(url):
-    # Decide whether to crawl this url or not. 
-    # If you decide to crawl it, return True; otherwise return False.
-    # There are already some conditions that return False.
+    """
+    Decide whether to crawl this URL or not.
+    Returns True if the URL is allowed, False otherwise.
+    """
     try:
         parsed = urlparse(url)
-
         path = (parsed.path or "").lower()
         query = (parsed.query or "").lower()
+        netloc = (parsed.netloc or "").lower()
 
-
-        if parsed.scheme not in set(["http", "https"]):
+        if parsed.scheme not in {"http", "https"}:
             return False
-        condition = not re.match(
+
+        if re.match(
             r".*\.(css|js|bmp|gif|jpe?g|ico"
             + r"|png|tiff?|mid|mp2|mp3|mp4"
             + r"|wav|avi|mov|mpeg|ram|m4v|mkv|ogg|ogv|pdf"
@@ -69,36 +136,24 @@ def is_valid(url):
             + r"|data|dat|exe|bz2|tar|msi|bin|7z|psd|dmg|iso"
             + r"|epub|dll|cnf|tgz|sha1"
             + r"|thmx|mso|arff|rtf|jar|csv"
-            + r"|rm|smil|wmv|swf|wma|zip|rar|gz)$", path)
-        if condition is False:
+            + r"|rm|smil|wmv|swf|wma|zip|rar|gz)$", path):
             return False
-        
-        allowed = (
-            "ics.uci.edu",
-            "cs.uci.edu",
-            "informatics.uci.edu",
-            "stat.uci.edu",
-        )
 
-        max_len = 500
+        allowed_domains = ("ics.uci.edu", "cs.uci.edu", "informatics.uci.edu", "stat.uci.edu")
+        if not any(netloc == d or netloc.endswith("." + d) for d in allowed_domains):
+            return False
 
-        if len(url) > max_len:
-            return False
-        
-        netloc = (parsed.netloc or "").lower()
-        if not netloc:
-            return False
-        if not any(netloc == d or netloc.endswith("." + d) for d in allowed):
-            return False
-        
         if re.search(r"/\d{4}/\d{1,2}(/\d{1,2})?/?$", path):
             return False
-        if re.search(r"/(events?|calendar)/\d", path):
-            return False
+
         if re.search(r"(year|month|week|day)=\d+", query):
             return False
+        if "calendar" in path or "events" in path:
+            return False
+
         if "machine-learning-databases" in path or "/ml/databases/" in path:
             return False
+
         segments = [s for s in path.split("/") if s]
         if len(segments) >= 2:
             counts = {}
@@ -107,11 +162,21 @@ def is_valid(url):
             if max(counts.values()) > 2:
                 return False
 
+        if len(url) > 500:
+            return False
+
+        if "ical" in query or "ical" in path:
+            return False
+        if "intranet.ics.uci.edu" in netloc:
+            return False
+        if "doku.php" in path:
+            return False
+        if "do=media" in query or "image=" in query:
+            return False
+        if query.count("&") >= 3:
+            return False
+
         return True
 
-
-    except TypeError:
-        print ("TypeError for ", parsed)
-        raise
-    
-    
+    except Exception:
+        return False
