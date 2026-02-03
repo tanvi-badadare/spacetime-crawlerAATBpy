@@ -28,11 +28,18 @@ def extract_next_links(url, resp):
     
     try:
         soup = BeautifulSoup(resp.raw_response.content, "html.parser")
+        
+        # Remove script, style, and noscript tags to avoid extracting links from them
+        for tag in soup(["script", "style", "noscript"]):
+            tag.extract()
+        
         for tag in soup.find_all("a", href=True):
             href = tag["href"].strip()
-            if not href or href.startswith("#"):
+            if not href or href.startswith("#") or href.startswith("javascript:") or href.startswith("mailto:"):
                 continue
-            full_url = urljoin(url, href)
+            
+            # CRITICAL FIX: Use resp.url instead of url to handle redirects correctly
+            full_url = urljoin(resp.url, href)
             clean_url, _ = urldefrag(full_url)
             links.append(clean_url)
     except Exception as e:
@@ -53,53 +60,72 @@ def is_valid(url):
     # If you decide to crawl it, return True; otherwise return False.
     # There are already some conditions that return False.
     try:
+        # Normalize URL by removing trailing slash
+        url = url.rstrip("/")
         parsed = urlparse(url)
 
         path = (parsed.path or "").lower()
         query = (parsed.query or "").lower()
+        netloc = (parsed.netloc or "").lower()
 
+        # Scheme check
+        if parsed.scheme not in {"http", "https"}:
+            return False
 
-        if parsed.scheme not in set(["http", "https"]):
-            return False
-        condition = not re.match(
-            r".*\.(css|js|bmp|gif|jpe?g|ico"
-            + r"|png|tiff?|mid|mp2|mp3|mp4"
-            + r"|wav|avi|mov|mpeg|ram|m4v|mkv|ogg|ogv|pdf"
-            + r"|ps|eps|tex|ppt|pptx|doc|docx|xls|xlsx|names"
-            + r"|data|dat|exe|bz2|tar|msi|bin|7z|psd|dmg|iso"
-            + r"|epub|dll|cnf|tgz|sha1"
-            + r"|thmx|mso|arff|rtf|jar|csv"
-            + r"|rm|smil|wmv|swf|wma|zip|rar|gz)$", path)
-        if condition is False:
-            return False
-        
-        allowed = (
+        # Domain restriction
+        allowed_domains = (
             "ics.uci.edu",
             "cs.uci.edu",
             "informatics.uci.edu",
             "stat.uci.edu",
         )
 
-        max_len = 500
+        # Handle port numbers in netloc
+        netloc_without_port = netloc.split(":")[0]
+        if not netloc_without_port:
+            return False
+        if not any(netloc_without_port == domain or netloc_without_port.endswith("." + domain) for domain in allowed_domains):
+            return False
 
+        # Max URL length (crawler trap defense)
+        max_len = 500
         if len(url) > max_len:
             return False
         
-        netloc = (parsed.netloc or "").lower()
-        if not netloc:
-            return False
-        if not any(netloc == d or netloc.endswith("." + d) for d in allowed):
+        # File extension filtering
+        if re.match(
+            r".*\.(css|js|bmp|gif|jpe?g|ico"
+            r"|png|tiff?|mid|mp2|mp3|mp4"
+            r"|wav|avi|mov|mpeg|ram|m4v|mkv|ogg|ogv|pdf"
+            r"|ps|eps|tex|ppt|pptx|doc|docx|xls|xlsx|names"
+            r"|data|dat|exe|bz2|tar|msi|bin|7z|psd|dmg|iso"
+            r"|epub|dll|cnf|tgz|sha1"
+            r"|thmx|mso|arff|rtf|jar|csv"
+            r"|rm|smil|wmv|swf|wma|zip|rar|gz)$",
+            path
+        ):
             return False
         
+        # Date pattern filtering (avoid calendar/date URLs)
         if re.search(r"/\d{4}/\d{1,2}(/\d{1,2})?/?$", path):
+            return False
+        
+        # Calendar and events filtering
+        if re.search(r"/(calendar|events?)/", path):
             return False
         if re.search(r"/(events?|calendar)/\d", path):
             return False
-        if re.search(r"(year|month|week|day)=\d+", query):
+        
+        # Query parameter filtering (avoid date-based queries and pagination)
+        if re.search(r"(year|month|week|day|page|sort|filter)=\d+", query):
             return False
+        
+        # Machine learning databases filtering
         if "machine-learning-databases" in path or "/ml/databases/" in path:
             return False
-        segments = [s for s in path.split("/") if s]
+        
+        # Segment repetition detection (crawler trap defense)
+        segments = [s for s in path.split("/") if s and len(s) > 2]
         if len(segments) >= 2:
             counts = {}
             for seg in segments:
@@ -109,9 +135,7 @@ def is_valid(url):
 
         return True
 
-
-    except TypeError:
-        print ("TypeError for ", parsed)
-        raise
+    except Exception:
+        return False
     
     
