@@ -1,9 +1,11 @@
 import re
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urljoin, urldefrag, urlunparse
+from bs4 import BeautifulSoup
 
-def scraper(url, resp):
+def scraper(url, resp):  
     links = extract_next_links(url, resp)
-    return [link for link in links if is_valid(link)]
+    print(f"Scraped {url} -> {len(links)} valid links")
+    return links
 
 def extract_next_links(url, resp):
     # Implementation required.
@@ -15,7 +17,36 @@ def extract_next_links(url, resp):
     #         resp.raw_response.url: the url, again
     #         resp.raw_response.content: the content of the page!
     # Return a list with the hyperlinks (as strings) scrapped from resp.raw_response.content
-    return list()
+
+    links = set()
+
+    if resp.status != 200 or resp.raw_response is None or resp.raw_response.content is None:
+        print(f"[SCRAPER] Skipping {url}, status {resp.status}")
+        return links
+    
+    soup = BeautifulSoup(resp.raw_response.content, "lxml")
+    for a_tag in soup.find_all("a", href=True):
+        href = a_tag.get('href').strip()
+
+        if href.startswith("#") or href.startswith("javascript:") or href.startswith("mailto:") or href == "":
+            continue
+
+        absolute_url = urljoin(resp.url, href)
+        clean_url = urldefrag(absolute_url).url
+        clean_url = normalize_url(clean_url)
+
+        if is_valid(clean_url):
+            links.add(clean_url)
+
+    return list(links)
+
+def normalize_url(url):
+    parsed = urlparse(url)
+    parsed = parsed._replace(query="", fragment="")
+    normalized = urlunparse(parsed)
+    if normalized.endswith("/"):
+        normalized = normalized[:-1]
+    return normalized
 
 def is_valid(url):
     # Decide whether to crawl this url or not. 
@@ -23,9 +54,25 @@ def is_valid(url):
     # There are already some conditions that return False.
     try:
         parsed = urlparse(url)
-        if parsed.scheme not in set(["http", "https"]):
+        if parsed.scheme not in {"http", "https"}:
             return False
-        return not re.match(
+        
+        allowed_domains = (
+            "ics.uci.edu",
+            "cs.uci.edu",
+            "informatics.uci.edu",
+            "stat.uci.edu"
+        )
+        if not any(parsed.netloc.endswith(domain) for domain in allowed_domains):
+            return False
+        
+        path = parsed.path.lower()    
+        if re.search(r"/(calendar|events)/", path):
+            return False
+        if "archive.ics.uci.edu" in url.lower():
+            return False
+        
+        return not re.search(
             r".*\.(css|js|bmp|gif|jpe?g|ico"
             + r"|png|tiff?|mid|mp2|mp3|mp4"
             + r"|wav|avi|mov|mpeg|ram|m4v|mkv|ogg|ogv|pdf"
@@ -33,8 +80,7 @@ def is_valid(url):
             + r"|data|dat|exe|bz2|tar|msi|bin|7z|psd|dmg|iso"
             + r"|epub|dll|cnf|tgz|sha1"
             + r"|thmx|mso|arff|rtf|jar|csv"
-            + r"|rm|smil|wmv|swf|wma|zip|rar|gz)$", parsed.path.lower())
-
+            + r"|rm|smil|wmv|swf|wma|zip|rar|gz)$", path
+        )
     except TypeError:
-        print ("TypeError for ", parsed)
-        raise
+        return False
