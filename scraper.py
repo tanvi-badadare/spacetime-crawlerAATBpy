@@ -1,38 +1,6 @@
 import re
 from urllib.parse import urlparse, urljoin, urldefrag, urlunparse
 from bs4 import BeautifulSoup
-from collections import Counter
-
-# Optional: Statistics tracking (can be disabled for thread-safety)
-# Set ENABLE_STATS = False if running in multi-threaded environment
-ENABLE_STATS = True
-
-if ENABLE_STATS:
-    unique_urls = set()
-    word_counts = {}
-    all_words = Counter()
-    subdomains = {}
-
-# from Aarabhi-edits - Stop words only in analytics.py; scraper imports from there
-from analytics import STOP_WORDS as STOPWORDS
-
-
-# from aarushi_edits1
-def tokenize_text(text):
-    """
-    Tokenize text into words, filtering for ASCII alphabetic characters only.
-    Returns a generator of lowercase tokens.
-    """
-    token = ''
-    for char in text:
-        if char.isascii() and char.isalpha():
-            token += char.lower()
-        else:
-            if token:
-                yield token
-                token = ''
-    if token:
-        yield token
 
 
 # from Aarabhi-edits
@@ -52,20 +20,12 @@ def normalize_url(url):
 def scraper(url, resp):
     links = extract_next_links(url, resp)
     filtered_links = []
-    
+
     for link in links:
         if is_valid(link):
             link, _ = urldefrag(link)
             filtered_links.append(link)
-            
-            # from aarushi_edits1 - Optional statistics tracking
-            if ENABLE_STATS:
-                unique_urls.add(link)
-                netloc = urlparse(link).netloc.lower()
-                if netloc not in subdomains:
-                    subdomains[netloc] = set()
-                subdomains[netloc].add(link)
-    
+
     return filtered_links
 
 
@@ -96,14 +56,7 @@ def extract_next_links(url, resp):
         # from aarushi_edits1 - Remove script, style, and noscript tags to avoid extracting links from them
         for tag in soup(["script", "style", "noscript"]):
             tag.extract()
-        
-        # from aarushi_edits1 - Optional: Extract and tokenize text for statistics
-        if ENABLE_STATS:
-            text = soup.get_text(separator=" ")
-            words = [w for w in tokenize_text(text) if w not in STOPWORDS]
-            word_counts[url] = len(words)
-            all_words.update(words)
-        
+
         for tag in soup.find_all("a", href=True):
             href = tag["href"].strip()
             # from Aarabhi-edits - Filter javascript and mailto links
@@ -119,16 +72,9 @@ def extract_next_links(url, resp):
             links.append(clean_url)
     except Exception as e:
         print(f"Error parsing {url}: {e}")
-    
-    return links
-    
-    # resp.status: the status code returned by the server. 200 is OK, you got the page. Other numbers mean that there was some kind of problem.
-    # resp.error: when status is not 200, you can check the error here, if needed.
-    # resp.raw_response: this is where the page actually is. More specifically, the raw_response has two parts:
-    #         resp.raw_response.url: the url, again
-    #         resp.raw_response.content: the content of the page!
-    # Return a list with the hyperlinks (as strings) scrapped from resp.raw_response.content
-    # what they had: return list()
+
+    return list(set(links))
+
 
 def is_valid(url):
     """

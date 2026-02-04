@@ -27,12 +27,4 @@ def computeWordFrequencies(tokens):
     Compute word frequencies from a list of tokens.
     Returns a dictionary mapping words to their frequencies.
     """
-    frequencies = {}
-
-    for token in tokens:
-        if token in frequencies:
-            frequencies[token] += 1
-        else:
-            frequencies[token] = 1
-
-    return frequencies
+    return dict(Counter(tokens))
