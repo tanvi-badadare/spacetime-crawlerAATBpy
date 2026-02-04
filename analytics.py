@@ -63,7 +63,12 @@ def process_page(url, html_content):
     soup = BeautifulSoup(html_content, "lxml")
     text = soup.get_text(separator=" ")
 
-    tokens = [t for t in tokenize_text(text) if t not in STOP_WORDS]
+    # Filter stop words and single chars (a-z, A-Z, 0-9)
+    tokens = [
+        t for t in tokenize_text(text)
+        if t not in STOP_WORDS
+        and not (len(t) == 1 and t.isalnum())
+    ]
     word_count = len(tokens)
 
     if word_count > longest_page_length:
