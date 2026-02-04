@@ -60,7 +60,7 @@ def process_page(url, html_content):
     else:
         subdomain_counts[netloc] = 1
 
-    soup = BeautifulSoup(html_content, "html.parser")
+    soup = BeautifulSoup(html_content, "lxml")
     text = soup.get_text(separator=" ")
 
     tokens = [t for t in tokenize_text(text) if t not in STOP_WORDS]

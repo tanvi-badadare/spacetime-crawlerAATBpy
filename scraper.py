@@ -91,7 +91,7 @@ def extract_next_links(url, resp):
         return links
     
     try:
-        soup = BeautifulSoup(resp.raw_response.content, "html.parser")
+        soup = BeautifulSoup(resp.raw_response.content, "lxml")
         
         # from aarushi_edits1 - Remove script, style, and noscript tags to avoid extracting links from them
         for tag in soup(["script", "style", "noscript"]):
