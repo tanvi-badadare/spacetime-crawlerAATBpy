@@ -11,11 +11,13 @@ class Crawler(object):
         self.worker_factory = worker_factory
 
     def start_async(self):
+        self.logger.info(f"Starting crawler with {self.config.threads_count} worker thread(s)")
         self.workers = [
             self.worker_factory(worker_id, self.config, self.frontier)
             for worker_id in range(self.config.threads_count)]
         for worker in self.workers:
             worker.start()
+        self.logger.info("All workers started")
 
     def start(self):
         self.start_async()
@@ -24,3 +26,4 @@ class Crawler(object):
     def join(self):
         for worker in self.workers:
             worker.join()
+        self.logger.info("All workers finished. Crawler stopped.")
