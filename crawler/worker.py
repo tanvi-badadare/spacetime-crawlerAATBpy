@@ -4,8 +4,6 @@ from inspect import getsource
 from utils.download import download
 from utils import get_logger
 import scraper
-import time
-# from Aarabhi-edits
 import analytics
 
 class Worker(Thread):
@@ -20,15 +18,18 @@ class Worker(Thread):
         
     def run(self):
         while True:
-            tbd_url = self.frontier.get_tbd_url()
+            tbd_url = self.frontier.get_tbd_url(timeout=1.0)
             if not tbd_url:
-                self.logger.info("Frontier is empty. Stopping Crawler.")
-                break
+                if self.frontier.is_done():
+                    self.logger.info("Crawl limit reached. Stopping.")
+                    break
+                continue
+            domain = self.frontier.get_domain(tbd_url)
+            self.frontier.wait_for_politeness(domain)
             resp = download(tbd_url, self.config, self.logger)
             self.logger.info(
                 f"Downloaded {tbd_url}, status <{resp.status}>, "
                 f"using cache {self.config.cache_server}.")
-            # from Aarabhi-edits
             if resp.status == 200 and resp.raw_response and resp.raw_response.content:
                 try:
                     analytics.process_page(tbd_url, resp.raw_response.content)
@@ -39,4 +40,3 @@ class Worker(Thread):
                 self.frontier.add_url(scraped_url)
 
             self.frontier.mark_url_complete(tbd_url)
-            time.sleep(self.config.time_delay)
