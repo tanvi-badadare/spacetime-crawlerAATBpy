@@ -3,6 +3,11 @@ from tokenizer import tokenize_text, computeWordFrequencies
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse
 
+from duplicate_detector import DuplicateDetector
+
+# Exact + near duplicate detection (extra credit)
+_duplicate_detector = DuplicateDetector(k_shingle=3, fingerprint_size=20, similarity_threshold=0.5)
+
 STOP_WORDS = {
     "a","able","about","above","abst","across","after","again","against","all",
     "almost","alone","along","already","also","although","always","am","among",
@@ -49,8 +54,16 @@ subdomain_counts = {}
 def process_page(url, html_content):
     """
     Process a page for analytics: extract text, tokenize, count words, track subdomains.
+    Skips exact and near-duplicate pages (similarity detection extra credit).
     """
     global longest_page_url, longest_page_length
+
+    soup = BeautifulSoup(html_content, "lxml")
+    text = soup.get_text(separator=" ")
+
+    # Exact and near-duplicate detection: skip if duplicate
+    if _duplicate_detector.is_duplicate(text):
+        return
 
     unique_pages.add(url)
 
@@ -59,9 +72,6 @@ def process_page(url, html_content):
         subdomain_counts[netloc] += 1
     else:
         subdomain_counts[netloc] = 1
-
-    soup = BeautifulSoup(html_content, "lxml")
-    text = soup.get_text(separator=" ")
 
     # Filter stop words and single chars (a-z, A-Z, 0-9)
     tokens = [

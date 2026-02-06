@@ -1,0 +1,137 @@
+"""
+Exact and near-duplicate webpage detection for the crawler.
+Implemented from scratch using lecture-style shingling and MinHash fingerprinting.
+No external similarity libraries.
+"""
+
+import re
+import hashlib
+
+
+class DuplicateDetector:
+    """
+    Detects exact and near-duplicate pages using:
+    - Exact: SHA-256 content hash
+    - Near: word-based k-shingles + smallest-N fingerprint (MinHash-style)
+    """
+
+    def __init__(self, k_shingle: int = 3, fingerprint_size: int = 20, similarity_threshold: float = 0.5):
+        """
+        Args:
+            k_shingle: Number of words per shingle (default 3)
+            fingerprint_size: Number of min-hash values to keep (default 20)
+            similarity_threshold: Jaccard threshold above which pages are near-duplicates (default 0.5)
+        """
+        self.k_shingle = k_shingle
+        self.fingerprint_size = fingerprint_size
+        self.similarity_threshold = similarity_threshold
+
+        # Exact duplicate: set of content hashes
+        self._seen_hashes = set()
+
+        # Near duplicate: list of fingerprints (each is a frozenset of min-hash values)
+        self._fingerprints = []
+
+    def _normalize_text(self, text: str) -> str:
+        """Lowercase and collapse whitespace for exact duplicate comparison."""
+        if not text or not text.strip():
+            return ""
+        text = text.lower().strip()
+        text = re.sub(r"\s+", " ", text)
+        return text
+
+    def _text_to_words(self, text: str) -> list[str]:
+        """Split normalized text into words (alphanumeric sequences)."""
+        if not text:
+            return []
+        words = re.findall(r"[a-z0-9]+", text.lower())
+        return words
+
+    def _get_content_hash(self, normalized_text: str) -> str:
+        """Compute SHA-256 hash of normalized text for exact duplicate detection."""
+        return hashlib.sha256(normalized_text.encode("utf-8")).hexdigest()
+
+    def _get_shingles(self, words: list[str]) -> list[tuple]:
+        """Produce k-word shingles from the word list."""
+        if len(words) < self.k_shingle:
+            return []
+        shingles = []
+        for i in range(len(words) - self.k_shingle + 1):
+            shingle = tuple(words[i : i + self.k_shingle])
+            shingles.append(shingle)
+        return shingles
+
+    def _hash_shingle(self, shingle: tuple) -> int:
+        """Deterministic hash of a shingle for fingerprinting."""
+        # Use SHA-256 and take first 8 bytes as int for consistent cross-run behavior
+        data = " ".join(shingle).encode("utf-8")
+        h = hashlib.sha256(data).hexdigest()[:16]
+        return int(h, 16)
+
+    def _compute_fingerprint(self, words: list[str]) -> frozenset[int]:
+        """
+        Create a fingerprint by hashing each shingle and keeping the smallest N values.
+        This approximates MinHash for efficient Jaccard similarity estimation.
+        """
+        shingles = self._get_shingles(words)
+        if not shingles:
+            return frozenset()
+
+        hashes = [self._hash_shingle(s) for s in shingles]
+        # Keep the smallest N hash values
+        sorted_hashes = sorted(hashes)
+        fingerprint = frozenset(sorted_hashes[: self.fingerprint_size])
+        return fingerprint
+
+    def _jaccard_similarity(self, fp_a: frozenset[int], fp_b: frozenset[int]) -> float:
+        """Compute Jaccard similarity: |intersection| / |union|."""
+        if not fp_a and not fp_b:
+            return 1.0
+        if not fp_a or not fp_b:
+            return 0.0
+        inter = len(fp_a & fp_b)
+        union = len(fp_a | fp_b)
+        return inter / union if union else 0.0
+
+    def _is_near_duplicate(self, fingerprint: frozenset[int]) -> bool:
+        """Check if fingerprint is similar to any previously seen fingerprint."""
+        if not fingerprint:
+            return False
+        for existing in self._fingerprints:
+            sim = self._jaccard_similarity(fingerprint, existing)
+            if sim >= self.similarity_threshold:
+                return True
+        return False
+
+    def is_duplicate(self, text: str) -> bool:
+        """
+        Check if the page text is an exact or near duplicate.
+        If False, the page is registered as seen for future comparisons.
+
+        Args:
+            text: HTML-stripped visible text from the page.
+
+        Returns:
+            True if exact or near duplicate (skip this page).
+            False if unique (page is registered internally).
+        """
+        normalized = self._normalize_text(text)
+        if not normalized:
+            # Empty or whitespace-only: treat as duplicate to avoid wasting slots
+            return True
+
+        # 1. Exact duplicate check
+        content_hash = self._get_content_hash(normalized)
+        if content_hash in self._seen_hashes:
+            return True
+
+        # 2. Near duplicate check (shingling + fingerprint)
+        words = self._text_to_words(normalized)
+        fingerprint = self._compute_fingerprint(words)
+        if self._is_near_duplicate(fingerprint):
+            return True
+
+        # 3. Not a duplicate: register for future checks
+        self._seen_hashes.add(content_hash)
+        self._fingerprints.append(fingerprint)
+        return False
