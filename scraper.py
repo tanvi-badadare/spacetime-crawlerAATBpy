@@ -2,13 +2,10 @@ import re
 from urllib.parse import urlparse, urljoin, urldefrag, urlunparse
 from bs4 import BeautifulSoup
 
+_URL_SEPARATORS = re.compile(r"\s+")
 
-# from Aarabhi-edits
+
 def normalize_url(url):
-    """
-    Normalize URL by removing query parameters, fragments, and trailing slashes.
-    This helps avoid duplicate URLs with different query parameters.
-    """
     parsed = urlparse(url)
     parsed = parsed._replace(query="", fragment="")
     normalized = urlunparse(parsed)
@@ -30,13 +27,9 @@ def scraper(url, resp):
 
 
 def extract_next_links(url, resp):
-    # Implementation required.
-    # url: the URL that was used to get the page
-    # resp.url: the actual url of the page
     links = []
 
     if resp.status != 200 or resp.raw_response is None or resp.raw_response.content is None:
-        # from Tanvi_edits
         if 600 <= resp.status <= 606:
             error_reason = resp.error if resp.error else f"Cache error ({resp.status})"
         elif 400 <= resp.status <= 599:
@@ -52,24 +45,25 @@ def extract_next_links(url, resp):
     
     try:
         soup = BeautifulSoup(resp.raw_response.content, "lxml")
-        
-        # from aarushi_edits1 - Remove script, style, and noscript tags to avoid extracting links from them
         for tag in soup(["script", "style", "noscript"]):
             tag.extract()
 
         for tag in soup.find_all("a", href=True):
-            href = tag["href"].strip()
-            # from Aarabhi-edits - Filter javascript and mailto links
-            if not href or href.startswith("#") or href.startswith("javascript:") or href.startswith("mailto:"):
+            href_raw = tag["href"].strip()
+            if not href_raw:
                 continue
-            
-            # from Aarabhi-edits - CRITICAL FIX: Use resp.url instead of url to handle redirects correctly
-            absolute_url = urljoin(resp.url, href)
-            clean_url, _ = urldefrag(absolute_url)
-            # from Aarabhi-edits - Normalize URL to avoid duplicates with different query params
-            clean_url = normalize_url(clean_url)
-            
-            links.append(clean_url)
+
+            for part in _URL_SEPARATORS.split(href_raw):
+                href = part.strip()
+                if not href or href.startswith("#") or href.startswith("javascript:") or href.startswith("mailto:"):
+                    continue
+
+                href = href.replace("https|", "https:").replace("http|", "http:")
+                absolute_url = urljoin(resp.url, href)
+                clean_url, _ = urldefrag(absolute_url)
+                clean_url = normalize_url(clean_url)
+
+                links.append(clean_url)
     except Exception as e:
         print(f"Error parsing {url}: {e}")
 
@@ -77,13 +71,7 @@ def extract_next_links(url, resp):
 
 
 def is_valid(url):
-    """
-    Decide whether to crawl this URL or not.
-    Returns True if the URL is allowed, False otherwise.
-    Combines the best validation rules from all team members' implementations.
-    """
     try:
-        # from aarushi_edits - Normalize URL by removing trailing slash
         url = url.rstrip("/")
         parsed = urlparse(url)
 
@@ -91,11 +79,9 @@ def is_valid(url):
         query = (parsed.query or "").lower()
         netloc = (parsed.netloc or "").lower()
 
-        # Scheme check
         if parsed.scheme not in {"http", "https"}:
             return False
 
-        # Domain restriction
         allowed_domains = (
             "ics.uci.edu",
             "cs.uci.edu",
@@ -103,19 +89,15 @@ def is_valid(url):
             "stat.uci.edu",
         )
 
-        # from aarushi_edits - Handle port numbers in netloc
         netloc_without_port = netloc.split(":")[0]
         if not netloc_without_port:
             return False
         if not any(netloc_without_port == domain or netloc_without_port.endswith("." + domain) for domain in allowed_domains):
             return False
 
-        # from Tanvi_edits - Max URL length (crawler trap defense)
         max_len = 500
         if len(url) > max_len:
             return False
-        
-        # File extension filtering
         if re.match(
             r".*\.(css|js|bmp|gif|jpe?g|ico"
             r"|png|tiff?|mid|mp2|mp3|mp4"
@@ -128,26 +110,16 @@ def is_valid(url):
             path
         ):
             return False
-        
-        # from Tanvi_edits - Date pattern filtering (avoid calendar/date URLs)
         if re.search(r"/\d{4}/\d{1,2}(/\d{1,2})?/?$", path):
             return False
-        
-        # from Tanvi_edits and aarushi_edits - Calendar and events filtering
         if re.search(r"/(calendar|events?)/", path):
             return False
         if re.search(r"/(events?|calendar)/\d", path):
             return False
-        
-        # from Tanvi_edits and aarushi_edits - Query parameter filtering (avoid date-based queries and pagination)
         if re.search(r"(year|month|week|day|page|sort|filter)=\d+", query):
             return False
-        
-        # from Tanvi_edits - Machine learning databases filtering
         if "machine-learning-databases" in path or "/ml/databases/" in path:
             return False
-        
-        # from aarushi_edits1 - Additional filters
         if "ical" in query or "ical" in path:
             return False
         if "intranet.ics.uci.edu" in netloc:
@@ -158,8 +130,6 @@ def is_valid(url):
             return False
         if query.count("&") >= 3:
             return False
-        
-        # from aarushi_edits - Segment repetition detection (crawler trap defense) - improved to only count segments > 2 chars
         segments = [s for s in path.split("/") if s and len(s) > 2]
         if len(segments) >= 2:
             counts = {}

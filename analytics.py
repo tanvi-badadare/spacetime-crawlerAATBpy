@@ -1,12 +1,16 @@
-# from Aarabhi-edits
+import threading
 from tokenizer import tokenize_text, computeWordFrequencies
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse
 
 from duplicate_detector import DuplicateDetector
 
-# Exact + near duplicate detection (extra credit)
+DUPLICATES_LOG = "duplicates_log.txt"
+_duplicates_lock = threading.Lock()
+
 _duplicate_detector = DuplicateDetector(k_shingle=3, fingerprint_size=20, similarity_threshold=0.5)
+
+MIN_WORD_COUNT = 50
 
 STOP_WORDS = {
     "a","able","about","above","abst","across","after","again","against","all",
@@ -41,7 +45,9 @@ STOP_WORDS = {
     "well","were","what","whatever","when","whence","whenever","where","whereafter",
     "whereas","whereby","wherein","whereupon","wherever","whether","which","while",
     "whither","who","whoever","whole","whom","whose","why","will","with","within",
-    "without","would","yet","you","your","yours","yourself","yourselves"
+    "without","would","yet","you","your","yours","yourself","yourselves",
+    "january","february","march","april","may","june","july",
+    "august","september","october","november","december"
 }
 
 
@@ -51,18 +57,27 @@ longest_page_url = None
 longest_page_length = 0
 subdomain_counts = {}
 
+
 def process_page(url, html_content):
-    """
-    Process a page for analytics: extract text, tokenize, count words, track subdomains.
-    Skips exact and near-duplicate pages (similarity detection extra credit).
-    """
     global longest_page_url, longest_page_length
 
     soup = BeautifulSoup(html_content, "lxml")
+    for tag in soup(["script", "style", "noscript"]):
+        tag.decompose()
     text = soup.get_text(separator=" ")
 
-    # Exact and near-duplicate detection: skip if duplicate
     if _duplicate_detector.is_duplicate(text):
+        with _duplicates_lock:
+            with open(DUPLICATES_LOG, "a", encoding="utf-8") as f:
+                if f.tell() == 0:
+                    f.write("url (skipped as exact or near duplicate)\n")
+                f.write(f"{url}\n")
+        return
+
+    all_tokens = tokenize_text(text)
+    word_count = len(all_tokens)
+
+    if word_count < MIN_WORD_COUNT:
         return
 
     unique_pages.add(url)
@@ -73,45 +88,53 @@ def process_page(url, html_content):
     else:
         subdomain_counts[netloc] = 1
 
-    # Filter stop words and single chars (a-z, A-Z, 0-9)
-    tokens = [
-        t for t in tokenize_text(text)
-        if t not in STOP_WORDS
-        and not (len(t) == 1 and t.isalnum())
-    ]
-    word_count = len(tokens)
-
     if word_count > longest_page_length:
         longest_page_length = word_count
         longest_page_url = url
 
-    page_freq = computeWordFrequencies(tokens)
+    tokens_filtered = [
+        t for t in all_tokens
+        if t not in STOP_WORDS
+        and not (len(t) == 1 and t.isalnum())
+        and not (len(t) == 2 and t.isdigit())
+        and not (len(t) == 4 and t.isdigit() and (t.startswith("19") or t.startswith("20")))
+    ]
+    page_freq = computeWordFrequencies(tokens_filtered)
     for word, count in page_freq.items():
         global_word_frequencies[word] = global_word_frequencies.get(word, 0) + count
 
 def print_report():
-    """
-    Print analytics report to console and save to crawler_report.txt file.
-    """
     report_lines = []
 
-    report_lines.append(f"Unique pages: {len(unique_pages)}")
-    report_lines.append(f"Longest page: {longest_page_url} ({longest_page_length} words)")
+    report_lines.append("=" * 60)
+    report_lines.append("CRAWLER ANALYTICS REPORT")
+    report_lines.append("=" * 60)
 
-    # Fixed: changed keys=lambda to key=lambda
+    report_lines.append("\n1. UNIQUE PAGES")
+    report_lines.append("   Total number of distinct pages crawled (excluding duplicates and low-info pages):")
+    report_lines.append(f"   {len(unique_pages)}")
+
+    report_lines.append("\n2. LONGEST PAGE")
+    report_lines.append("   The page with the highest word count (visible text only):")
+    report_lines.append(f"   {longest_page_url} ({longest_page_length} words)")
+
     top_words = sorted(
         global_word_frequencies.items(),
         key=lambda x: x[1],
         reverse=True
     )[:50]
-    
-    report_lines.append("\nTop 50 words:")
-    for word, freq in top_words:
-        report_lines.append(f"{word} {freq}")
 
-    report_lines.append("\nSubdomain counts:")
+    report_lines.append("\n3. TOP 50 WORDS")
+    report_lines.append("   Most frequent words across all pages (excluding stopwords):")
+    report_lines.append("   word, count")
+    for word, freq in top_words:
+        report_lines.append(f"   {word} {freq}")
+
+    report_lines.append("\n4. SUBDOMAINS AND UNIQUE PAGES")
+    report_lines.append("   Number of unique pages detected in each subdomain:")
+    report_lines.append("   subdomain, unique_pages")
     for subdomain in sorted(subdomain_counts.keys()):
-        report_lines.append(f"{subdomain}, {subdomain_counts[subdomain]}")
+        report_lines.append(f"   {subdomain}, {subdomain_counts[subdomain]}")
 
     for line in report_lines:
         print(line)
