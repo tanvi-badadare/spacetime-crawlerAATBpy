@@ -99,7 +99,7 @@ def is_valid(url):
         if not any(netloc_without_port == domain or netloc_without_port.endswith("." + domain) for domain in allowed_domains):
             return False
 
-        # Filter out overly long URLs (often malformed or traps)
+        # Filter out overly long URLs
         max_len = 500
         if len(url) > max_len:
             return False
