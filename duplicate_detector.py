@@ -1,5 +1,6 @@
 import re
 import hashlib
+import threading
 
 
 class DuplicateDetector:
@@ -14,6 +15,7 @@ class DuplicateDetector:
         self.similarity_threshold = similarity_threshold
         self._seen_hashes = set()  # Exact duplicate detection
         self._fingerprints = []  # Near-duplicate fingerprints
+        self._lock = threading.Lock()  # Thread-safe for multithreaded crawler
 
     def _normalize_text(self, text: str) -> str:
         if not text or not text.strip():
@@ -76,19 +78,17 @@ class DuplicateDetector:
         return False
 
     def is_duplicate(self, text: str) -> bool:
-        # First check exact duplicate (fast hash lookup)
         normalized = self._normalize_text(text)
         if not normalized:
             return True
         content_hash = self._get_content_hash(normalized)
-        if content_hash in self._seen_hashes:
-            return True
-        # Then check near-duplicate using fingerprint comparison
         words = self._text_to_words(normalized)
         fingerprint = self._compute_fingerprint(words)
-        if self._is_near_duplicate(fingerprint):
-            return True
-        # New unique content - store for future comparisons
-        self._seen_hashes.add(content_hash)
-        self._fingerprints.append(fingerprint)
-        return False
+        with self._lock:
+            if content_hash in self._seen_hashes:
+                return True
+            if self._is_near_duplicate(fingerprint):
+                return True
+            self._seen_hashes.add(content_hash)
+            self._fingerprints.append(fingerprint)
+            return False
