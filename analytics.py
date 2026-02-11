@@ -63,13 +63,22 @@ subdomain_counts = {}
 def process_page(url, html_content):
     global longest_page_url, longest_page_length
 
+    # Count unique pages by URL only (fragment discarded per assignment spec)
+    # Include all crawled URLs regardless of duplicate/low-word filters
+    unique_pages.add(url)
+    netloc = urlparse(url).netloc.split(':')[0]
+    if netloc in subdomain_counts:
+        subdomain_counts[netloc] += 1
+    else:
+        subdomain_counts[netloc] = 1
+
     soup = BeautifulSoup(html_content, "lxml")
     # Remove non-visible content before text extraction
     for tag in soup(["script", "style", "noscript"]):
         tag.decompose()
     text = soup.get_text(separator=" ")
 
-    # Check for exact or near-duplicate content (skip if found)
+    # Check for exact or near-duplicate content (skip analytics for these)
     if _duplicate_detector.is_duplicate(text):
         with _duplicates_lock:
             with open(DUPLICATES_LOG, "a", encoding="utf-8") as f:
@@ -81,16 +90,9 @@ def process_page(url, html_content):
     all_tokens = tokenize_text(text)
     word_count = len(all_tokens)
 
+    # Skip longest page and word freq for low-info pages
     if word_count < MIN_WORD_COUNT:
         return
-
-    unique_pages.add(url)
-
-    netloc = urlparse(url).netloc.split(':')[0]
-    if netloc in subdomain_counts:
-        subdomain_counts[netloc] += 1
-    else:
-        subdomain_counts[netloc] = 1
 
     if word_count > longest_page_length:
         longest_page_length = word_count
@@ -116,7 +118,7 @@ def print_report():
     report_lines.append("=" * 60)
 
     report_lines.append("\n1. UNIQUE PAGES")
-    report_lines.append("   Total number of distinct pages crawled (excluding duplicates and low-info pages):")
+    report_lines.append("   Total number of distinct pages crawled (uniqueness by URL, fragment discarded):")
     report_lines.append(f"   {len(unique_pages)}")
 
     report_lines.append("\n2. LONGEST PAGE")
