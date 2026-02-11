@@ -7,7 +7,7 @@ from duplicate_detector import DuplicateDetector
 
 DUPLICATES_LOG = "duplicates_log.txt"
 _duplicates_lock = threading.Lock()
-_analytics_lock = threading.Lock()  # Protects shared analytics globals (multithreaded)
+_analytics_lock = threading.Lock()
 
 # Near-duplicate detection using shingle-based fingerprinting
 _duplicate_detector = DuplicateDetector(k_shingle=3, fingerprint_size=20, similarity_threshold=0.5)
