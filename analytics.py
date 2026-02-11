@@ -7,6 +7,7 @@ from duplicate_detector import DuplicateDetector
 
 DUPLICATES_LOG = "duplicates_log.txt"
 _duplicates_lock = threading.Lock()
+_analytics_lock = threading.Lock()  # Protects shared analytics globals (multithreaded)
 
 # Near-duplicate detection using shingle-based fingerprinting
 _duplicate_detector = DuplicateDetector(k_shingle=3, fingerprint_size=20, similarity_threshold=0.5)
@@ -65,12 +66,13 @@ def process_page(url, html_content):
 
     # Count unique pages by URL only (fragment discarded per assignment spec)
     # Include all crawled URLs regardless of duplicate/low-word filters
-    unique_pages.add(url)
-    netloc = urlparse(url).netloc.split(':')[0]
-    if netloc in subdomain_counts:
-        subdomain_counts[netloc] += 1
-    else:
-        subdomain_counts[netloc] = 1
+    with _analytics_lock:
+        unique_pages.add(url)
+        netloc = urlparse(url).netloc.split(':')[0]
+        if netloc in subdomain_counts:
+            subdomain_counts[netloc] += 1
+        else:
+            subdomain_counts[netloc] = 1
 
     soup = BeautifulSoup(html_content, "lxml")
     # Remove non-visible content before text extraction
@@ -94,10 +96,6 @@ def process_page(url, html_content):
     if word_count < MIN_WORD_COUNT:
         return
 
-    if word_count > longest_page_length:
-        longest_page_length = word_count
-        longest_page_url = url
-
     # Filter out stopwords, single chars, 2-digit numbers, and years (1990-2099)
     tokens_filtered = [
         t for t in all_tokens
@@ -107,8 +105,13 @@ def process_page(url, html_content):
         and not (len(t) == 4 and t.isdigit() and (t.startswith("19") or t.startswith("20")))
     ]
     page_freq = computeWordFrequencies(tokens_filtered)
-    for word, count in page_freq.items():
-        global_word_frequencies[word] = global_word_frequencies.get(word, 0) + count
+
+    with _analytics_lock:
+        if word_count > longest_page_length:
+            longest_page_length = word_count
+            longest_page_url = url
+        for word, count in page_freq.items():
+            global_word_frequencies[word] = global_word_frequencies.get(word, 0) + count
 
 def print_report():
     report_lines = []
