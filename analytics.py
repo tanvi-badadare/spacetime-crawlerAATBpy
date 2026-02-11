@@ -67,13 +67,15 @@ def process_page(url, html_content):
     # Count unique pages by URL only (fragment discarded per assignment spec)
     # Include all crawled URLs regardless of duplicate/low-word filters
     with _analytics_lock:
-        unique_pages.add(url)
-        netloc = urlparse(url).netloc.split(':')[0]
-        if netloc in subdomain_counts:
-            subdomain_counts[netloc] += 1
-        else:
-            subdomain_counts[netloc] = 1
+        if url not in unique_pages:
+            unique_pages.add(url)
 
+            netloc = urlparse(url).netloc.split(':')[0]
+            if netloc in subdomain_counts:
+                subdomain_counts[netloc] += 1
+            else:
+                subdomain_counts[netloc] = 1
+                
     soup = BeautifulSoup(html_content, "lxml")
     # Remove non-visible content before text extraction
     for tag in soup(["script", "style", "noscript"]):

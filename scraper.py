@@ -6,10 +6,10 @@ _URL_SEPARATORS = re.compile(r"\s+")
 
 
 def normalize_url(url):
-    # Remove query params and fragments to treat URLs as same page
+    # Remove query fragments to treat URLs as same page
     # Remove trailing slash for consistency
     parsed = urlparse(url)
-    parsed = parsed._replace(query="", fragment="")
+    parsed = parsed._replace(fragment="")
     normalized = urlunparse(parsed)
     if normalized.endswith("/"):
         normalized = normalized[:-1]
