@@ -10,7 +10,8 @@ import analytics
 CONTENT_STATS_LOG = "content_stats_log.txt"
 _content_stats_lock = threading.Lock()
 
-MAX_CONTENT_SIZE_BYTES = 2 * 1024 * 1024  # 2 MB - skip processing for larger files
+# Skip processing files >= 2MB to avoid wasting resources on large non-HTML files
+MAX_CONTENT_SIZE_BYTES = 2 * 1024 * 1024  # 2 MB
 
 
 def _log_content_stats(url, size_bytes):
@@ -48,6 +49,7 @@ class Worker(Thread):
             if resp.status == 200 and resp.raw_response and resp.raw_response.content:
                 content = resp.raw_response.content
                 size_bytes = len(content)
+                # Skip large files - don't process or extract links from them
                 if size_bytes >= MAX_CONTENT_SIZE_BYTES:
                     self.logger.info(
                         f"Skipped {tbd_url} (size {size_bytes} bytes >= {MAX_CONTENT_SIZE_BYTES} limit)")

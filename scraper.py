@@ -6,6 +6,8 @@ _URL_SEPARATORS = re.compile(r"\s+")
 
 
 def normalize_url(url):
+    # Remove query params and fragments to treat URLs as same page
+    # Remove trailing slash for consistency
     parsed = urlparse(url)
     parsed = parsed._replace(query="", fragment="")
     normalized = urlunparse(parsed)
@@ -45,6 +47,7 @@ def extract_next_links(url, resp):
     
     try:
         soup = BeautifulSoup(resp.raw_response.content, "lxml")
+        # Remove non-content tags before extracting links
         for tag in soup(["script", "style", "noscript"]):
             tag.extract()
 
@@ -58,6 +61,7 @@ def extract_next_links(url, resp):
                 if not href or href.startswith("#") or href.startswith("javascript:") or href.startswith("mailto:"):
                     continue
 
+                # Fix malformed URLs
                 href = href.replace("https|", "https:").replace("http|", "http:")
                 absolute_url = urljoin(resp.url, href)
                 clean_url, _ = urldefrag(absolute_url)
@@ -67,7 +71,7 @@ def extract_next_links(url, resp):
     except Exception as e:
         print(f"Error parsing {url}: {e}")
 
-    return list(set(links))
+    return list(set(links))  # Make sure no duplicate links from same page
 
 
 def is_valid(url):
@@ -95,9 +99,11 @@ def is_valid(url):
         if not any(netloc_without_port == domain or netloc_without_port.endswith("." + domain) for domain in allowed_domains):
             return False
 
+        # Filter out overly long URLs (often malformed or traps)
         max_len = 500
         if len(url) > max_len:
             return False
+        # Skip binary files, media, documents
         if re.match(
             r".*\.(css|js|bmp|gif|jpe?g|ico"
             r"|png|tiff?|mid|mp2|mp3|mp4"
@@ -110,6 +116,7 @@ def is_valid(url):
             path
         ):
             return False
+        # Skip date-based URLs and calendar/event pages (often infinite loops)
         if re.search(r"/\d{4}/\d{1,2}(/\d{1,2})?/?$", path):
             return False
         if re.search(r"/(calendar|events?)/", path):
@@ -118,6 +125,7 @@ def is_valid(url):
             return False
         if re.search(r"(year|month|week|day|page|sort|filter)=\d+", query):
             return False
+        # Skip large database dumps and non-web content
         if "machine-learning-databases" in path or "/ml/databases/" in path:
             return False
         if "ical" in query or "ical" in path:
@@ -128,8 +136,10 @@ def is_valid(url):
             return False
         if "do=media" in query or "image=" in query:
             return False
+        # Skip URLs with too many query params (often dynamic/trap pages)
         if query.count("&") >= 3:
             return False
+        # Detect and skip URLs with repeated path segments (often traps)
         segments = [s for s in path.split("/") if s and len(s) > 2]
         if len(segments) >= 2:
             counts = {}

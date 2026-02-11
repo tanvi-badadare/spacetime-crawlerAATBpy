@@ -3,12 +3,17 @@ import hashlib
 
 
 class DuplicateDetector:
+    """
+    Detects exact duplicates (SHA256 hash) and near-duplicates using shingle-based
+    fingerprinting with Jaccard similarity. Uses k-shingles (k consecutive words)
+    to create fingerprints for comparison.
+    """
     def __init__(self, k_shingle: int = 3, fingerprint_size: int = 20, similarity_threshold: float = 0.5):
         self.k_shingle = k_shingle
         self.fingerprint_size = fingerprint_size
         self.similarity_threshold = similarity_threshold
-        self._seen_hashes = set()
-        self._fingerprints = []
+        self._seen_hashes = set()  # Exact duplicate detection
+        self._fingerprints = []  # Near-duplicate fingerprints
 
     def _normalize_text(self, text: str) -> str:
         if not text or not text.strip():
@@ -41,6 +46,7 @@ class DuplicateDetector:
         return int(h, 16)
 
     def _compute_fingerprint(self, words: list[str]) -> frozenset[int]:
+        # Create fingerprint from smallest hash values (minhash approach)
         shingles = self._get_shingles(words)
         if not shingles:
             return frozenset()
@@ -51,6 +57,7 @@ class DuplicateDetector:
         return fingerprint
 
     def _jaccard_similarity(self, fp_a: frozenset[int], fp_b: frozenset[int]) -> float:
+        # Jaccard similarity through intersection size / union size
         if not fp_a and not fp_b:
             return 1.0
         if not fp_a or not fp_b:
@@ -69,16 +76,19 @@ class DuplicateDetector:
         return False
 
     def is_duplicate(self, text: str) -> bool:
+        # First check exact duplicate (fast hash lookup)
         normalized = self._normalize_text(text)
         if not normalized:
             return True
         content_hash = self._get_content_hash(normalized)
         if content_hash in self._seen_hashes:
             return True
+        # Then check near-duplicate using fingerprint comparison
         words = self._text_to_words(normalized)
         fingerprint = self._compute_fingerprint(words)
         if self._is_near_duplicate(fingerprint):
             return True
+        # New unique content - store for future comparisons
         self._seen_hashes.add(content_hash)
         self._fingerprints.append(fingerprint)
         return False

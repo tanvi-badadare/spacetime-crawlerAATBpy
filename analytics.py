@@ -8,8 +8,10 @@ from duplicate_detector import DuplicateDetector
 DUPLICATES_LOG = "duplicates_log.txt"
 _duplicates_lock = threading.Lock()
 
+# Near-duplicate detection using shingle-based fingerprinting
 _duplicate_detector = DuplicateDetector(k_shingle=3, fingerprint_size=20, similarity_threshold=0.5)
 
+# Skip pages with too few words
 MIN_WORD_COUNT = 50
 
 STOP_WORDS = {
@@ -62,10 +64,12 @@ def process_page(url, html_content):
     global longest_page_url, longest_page_length
 
     soup = BeautifulSoup(html_content, "lxml")
+    # Remove non-visible content before text extraction
     for tag in soup(["script", "style", "noscript"]):
         tag.decompose()
     text = soup.get_text(separator=" ")
 
+    # Check for exact or near-duplicate content (skip if found)
     if _duplicate_detector.is_duplicate(text):
         with _duplicates_lock:
             with open(DUPLICATES_LOG, "a", encoding="utf-8") as f:
@@ -92,6 +96,7 @@ def process_page(url, html_content):
         longest_page_length = word_count
         longest_page_url = url
 
+    # Filter out stopwords, single chars, 2-digit numbers, and years (1990-2099)
     tokens_filtered = [
         t for t in all_tokens
         if t not in STOP_WORDS
