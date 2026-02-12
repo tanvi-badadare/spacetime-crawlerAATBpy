@@ -4,7 +4,7 @@ CRAWLER ANALYTICS REPORT
 
 1. UNIQUE PAGES
    Total number of distinct pages crawled. Uniqueness is by URL only, with the fragment part discarded.
-   33599
+   33600
 
 2. LONGEST PAGE
    The page with the highest word count (visible text only):
@@ -13,56 +13,56 @@ CRAWLER ANALYTICS REPORT
 3. TOP 50 WORDS
    Most frequent words across all pages (excluding stopwords):
    word, count
-   research 21006
-   computer 14900
-   data 14711
-   uci 14140
-   ics 13911
-   information 13391
-   software 12384
-   students 12294
-   student 12067
-   technical 11482
-   image 11249
-   time 10831
-   project 10708
-   size 10595
-   science 10507
-   details 10102
-   original 9931
-   taken 9703
-   ramesh 9592
-   prev 9377
-   university 9337
-   iso 9276
-   learning 9058
-   news 8912
-   irvine 8632
-   new 8399
-   canon 8366
-   eos 8346
-   equiv 8338
-   search 8237
-   nbsp 8081
-   graduate 8018
-   informatics 8018
-   com 7691
-   engineering 7664
-   undergraduate 7637
-   people 7492
-   values 7362
-   projects 7274
-   use 7118
-   computing 7070
-   f2 6774
-   events 6653
-   systems 6643
-   current 6637
-   using 6490
-   eppstein 6476
-   past 6445
-   insert 6423
-   change 6409
+   research 21291
+   computer 14981
+   data 14758
+   uci 14102
+   ics 13891
+   information 13453
+   software 12564
+   students 12337
+   student 12260
+   technical 11473
+   image 11243
+   time 10821
+   project 10628
+   size 10580
+   science 10531
+   details 10086
+   original 9912
+   ramesh 9770
+   taken 9689
+   university 9376
+   prev 9363
+   iso 9263
+   learning 9092
+   news 8996
+   irvine 8669
+   new 8407
+   canon 8352
+   eos 8332
+   equiv 8324
+   search 8251
+   informatics 8182
+   graduate 8164
+   engineering 7847
+   undergraduate 7801
+   people 7562
+   values 7371
+   projects 7336
+   computing 7090
+   use 7077
+   events 6667
+   current 6651
+   systems 6624
+   using 6505
+   past 6487
+   eppstein 6482
+   courses 6447
+   insert 6425
+   100 6395
+   change 6367
+   changes 6325
 
 4. SUBDOMAINS AND UNIQUE PAGES
    Number of unique pages detected in each subdomain:
@@ -133,7 +133,7 @@ CRAWLER ANALYTICS REPORT
    mswe.ics.uci.edu, 11
    mupro.proteomics.ics.uci.edu, 3
    nalini.ics.uci.edu, 7
-   ngs.ics.uci.edu, 2950
+   ngs.ics.uci.edu, 2951
    oai.ics.uci.edu, 5
    pepito.proteomics.ics.uci.edu, 5
    plrg.ics.uci.edu, 84

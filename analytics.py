@@ -50,7 +50,7 @@ STOP_WORDS = {
     "whither","who","whoever","whole","whom","whose","why","will","with","within",
     "without","would","yet","you","your","yours","yourself","yourselves",
     "january","february","march","april","may","june","july",
-    "august","september","october","november","december"
+    "august","september","october","november","december", "nbsp", "com", "f2"
 }
 
 
