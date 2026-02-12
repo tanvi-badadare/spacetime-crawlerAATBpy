@@ -123,7 +123,7 @@ def print_report():
     report_lines.append("=" * 60)
 
     report_lines.append("\n1. UNIQUE PAGES")
-    report_lines.append("   Total number of distinct pages crawled (uniqueness by URL, fragment discarded):")
+    report_lines.append("   Total number of distinct pages crawled. Uniqueness is by URL only, with the fragment part discarded.")
     report_lines.append(f"   {len(unique_pages)}")
 
     report_lines.append("\n2. LONGEST PAGE")

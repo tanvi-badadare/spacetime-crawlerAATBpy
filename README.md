@@ -1,5 +1,5 @@
-ace this <3
-dependencies: lxml beautifulsoup for parsing
+Spacetime crawler for CS121/INF141.  
+Dependencies: lxml, beautifulsoup4 for parsing.
 
 ABOUT
 -------------------------
